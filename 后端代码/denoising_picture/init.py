@@ -1,12 +1,15 @@
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_mail import Mail, Message
-from flask_cors import CORS
+# from flask_cors import CORS
 import random
 
 app = Flask(__name__)
 
-app.config['SQLALCHEMY_DATABASE_URI'] = "mysql+pymysql://root:ysj500236@localhost:3306/denoised_picture_community"
+app.config['SQLALCHEMY_DATABASE_URI'] = "mysql+pymysql://root:ysj500236@localhost:3306/processed_picture"
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SECRET_KEY'] = "sdasldk123@#*$"
+
 app.config.update(
     MAIL_SERVER="smtp.qq.com",
     MAIL_PORT=465,

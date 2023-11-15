@@ -1,7 +1,9 @@
 import auth
+import personal
 from init import app
 
 app.register_blueprint(auth.bp)
+app.register_blueprint(personal.bp)
 
 
 @app.route('/', methods=['GET', 'POST'])
