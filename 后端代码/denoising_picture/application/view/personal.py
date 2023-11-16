@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify, abort, session
-from init import db, send_mail
+from application import db, send_mail
 from sqlalchemy import text
 
 bp = Blueprint('personal', __name__, url_prefix='/user/<int:id>')

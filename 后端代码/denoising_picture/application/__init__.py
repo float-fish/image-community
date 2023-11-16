@@ -20,6 +20,7 @@ app.config.update(
 
 db = SQLAlchemy(app)
 
+
 mail = Mail(app)
 
 

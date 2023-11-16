@@ -1,6 +1,5 @@
-import auth
-import personal
-from init import app
+from application.view import personal, auth
+from . import app
 
 app.register_blueprint(auth.bp)
 app.register_blueprint(personal.bp)
