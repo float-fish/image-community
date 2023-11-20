@@ -30,5 +30,6 @@ with app.app_context():
     # db.session.commit()
 
     # 删除
-    dele = model.HeadPicture.query.filter(model.HeadPicture.head_picture_id >= 3).delete()
-    db.session.commit()
+    # dele = model.HeadPicture.query.filter(model.HeadPicture.head_picture_id >= 3).delete()
+    # db.session.commit()
+    pass

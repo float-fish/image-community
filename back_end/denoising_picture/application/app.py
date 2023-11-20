@@ -1,14 +1,15 @@
-from application.view import personal, auth
-from . import app
+from application.view import personal, auth, picture
+from application import app
+
 
 app.register_blueprint(auth.bp)
 app.register_blueprint(personal.bp)
+app.register_blueprint(picture.bp)
 
 
 @app.route('/', methods=['GET', 'POST'])
 def hello_world():  # put application's code here
-    # print(send_mail('3242295133@qq.com'))
-    return 'Hello World!'
+    return "hello-world"
 
 
 if __name__ == '__main__':

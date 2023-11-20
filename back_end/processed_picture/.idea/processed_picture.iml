@@ -5,24 +5,14 @@
   </component>
   <component name="NewModuleRootManager">
     <content url="file://$MODULE_DIR$" />
-    <orderEntry type="jdk" jdkName="Pipenv (denoising_picture) (3)" jdkType="Python SDK" />
+    <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
-  </component>
-  <component name="PackageRequirementsSettings">
-    <option name="versionSpecifier" value="强相等 (==x.y.z)" />
-  </component>
-  <component name="PyNamespacePackagesService">
-    <option name="namespacePackageFolders">
-      <list>
-        <option value="$MODULE_DIR$/application" />
-      </list>
-    </option>
   </component>
   <component name="TemplatesService">
     <option name="TEMPLATE_CONFIGURATION" value="Jinja2" />
     <option name="TEMPLATE_FOLDERS">
       <list>
-        <option value="$MODULE_DIR$/../denoising_picture\templates" />
+        <option value="$MODULE_DIR$/../processed_picture\templates" />
       </list>
     </option>
   </component>
