@@ -1,10 +1,7 @@
-from application.view import personal, auth, picture
 from application import app
+from flask_cors import CORS
 
-
-app.register_blueprint(auth.bp)
-app.register_blueprint(personal.bp)
-app.register_blueprint(picture.bp)
+CORS(app, supports_credentials=True)
 
 
 @app.route('/', methods=['GET', 'POST'])
@@ -13,4 +10,4 @@ def hello_world():  # put application's code here
 
 
 if __name__ == '__main__':
-    app.run()
+    app.run(debug=True, host="0.0.0.0")

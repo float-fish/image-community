@@ -6,6 +6,8 @@ name = "pypi"
 [packages]
 flask = "*"
 pymysql = "*"
+flask-cors = "*"
+torchvision = "*"
 
 [dev-packages]
 

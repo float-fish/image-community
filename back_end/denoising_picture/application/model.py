@@ -10,6 +10,9 @@ class HeadPicture(db.Model):
 
     users = db.relationship('User', back_populates='head')
 
+    def __repr__(self):
+        return '<Avatar %d>', self.head_picture_id
+
 
 # 用户表
 class User(db.Model):
@@ -17,7 +20,7 @@ class User(db.Model):
     user_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     head_picture_id = db.Column(db.Integer, db.ForeignKey(HeadPicture.head_picture_id))
     email = db.Column(db.String(32), nullable=False, unique=True)
-    user_password = db.Column(db.String(32), nullable=False)
+    user_password = db.Column(db.String(200), nullable=False)
     user_name = db.Column(db.String(15), nullable=False)
     sex = db.Column(db.Enum('男', '女'))
     telephone = db.Column(db.String(32))
@@ -26,6 +29,9 @@ class User(db.Model):
     head = db.relationship('HeadPicture', back_populates='users')
     old_images = db.relationship('OriginPicture', back_populates='owner', cascade='all')
     new_images = db.relationship('ProcessPicture', back_populates='owner', cascade='all')
+
+    def __repr__(self):
+        return '<User %d:%r>' % (self.user_id, self.email)
 
 
 # 原始图片表
@@ -40,6 +46,9 @@ class OriginPicture(db.Model):
 
     owner = db.relationship('User', back_populates='old_images')
     picture_process = db.relationship('ProcessPicture', back_populates='picture_from')
+
+    def __repr__(self):
+        return '<RawJpg %d>', self.picture_id
 
 
 # 去噪图片表
@@ -58,6 +67,9 @@ class ProcessPicture(db.Model):
     picture_from = db.relationship('OriginPicture', back_populates='picture_process')
     owner = db.relationship('User', back_populates='new_images')
 
+    def __repr__(self):
+        return '<ProcessedJpg %d>', self.picture_id
+
 
 # 管理员表
 
@@ -66,6 +78,9 @@ class Admin(db.Model):
     admin_account = db.Column(db.String(32), primary_key=True)
     admin_password = db.Column(db.String(32), nullable=False)
     admin_name = db.Column(db.String(15), nullable=False)
+
+    def __repr__(self):
+        return '<Admin %r>', self.admin_name
 
 
 if __name__ == '__main__':
