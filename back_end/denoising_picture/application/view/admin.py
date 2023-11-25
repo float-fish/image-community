@@ -62,11 +62,10 @@ def admin_logout():
     )
 
 
-@admin_bp.post('user')
+@admin_bp.post('/user')
 def admin_query_user():
     data = request.get_json()
     page = data.get('page')
-    per_page = data.get('per_page')
     users = model.User.query.paginate(page=page, per_page=8)
 
     users_id = []
@@ -90,7 +89,7 @@ def admin_query_user():
     )
 
 
-@admin_bp.get('user/<int:user_id>')
+@admin_bp.get('/user/<int:user_id>')
 def admin_query_byid(user_id: int):
     user = model.User.query.get(user_id)
     user_id = user.user_id
@@ -109,7 +108,7 @@ def admin_query_byid(user_id: int):
     )
 
 
-@admin_bp.delete('user/<int:user_id>')
+@admin_bp.delete('/user/<int:user_id>')
 def admin_del_user(user_id: int):
     user = model.User.query.get(user_id)
     db.session.delete(user)
@@ -117,7 +116,10 @@ def admin_del_user(user_id: int):
     return jsonify(code=200, msg="成功删除用户")
 
 
-@admin_bp.post('user/<int:user_id>')
+@admin_bp.post('/user/<int:user_id>')
 def admin_change_user(user_id: int):
     user = model.User.query.get(user_id)
+    data = request.get_json()
+    if 'user_name' in data:
+        user_name = data.get('user_name')
 

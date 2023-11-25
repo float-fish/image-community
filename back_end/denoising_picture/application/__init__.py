@@ -2,27 +2,19 @@ from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_mail import Mail, Message
 from flask_cors import CORS
-
-
 import random
+from config import APP_ENV, config_map
+
+db = SQLAlchemy()
+mail = Mail()
 
 app = Flask(__name__)
+app.config.from_object(config_map[APP_ENV])
 
-app.config['SQLALCHEMY_DATABASE_URI'] = "mysql+pymysql://root:ysj500236@localhost:3306/processed_picture"
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SECRET_KEY'] = "sdasldk123@#*$"
+CORS(app, resources=r'/*', supports_credentials=True)
 
-app.config.update(
-    MAIL_SERVER="smtp.qq.com",
-    MAIL_PORT=465,
-    MAIL_USE_SSL=True,
-    MAIL_USERNAME="923557344@qq.com",
-    MAIL_PASSWORD="wuqbwtzigllfbfbg"
-)
-
-db = SQLAlchemy(app)
-CORS(app, supports_credentials=True)
-mail = Mail(app)
+db.init_app(app)
+mail.init_app(app)
 
 
 def send_mail(receiver):

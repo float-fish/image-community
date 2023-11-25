@@ -1,5 +1,5 @@
 from smtplib import SMTPDataError
-
+from .user_personal.Userclass import UserSystem
 from flask import Blueprint, request, jsonify, session
 from application import db, send_mail
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -7,6 +7,8 @@ from ..model import User
 import os
 
 bp = Blueprint('auth', __name__, url_prefix='/user')
+
+user_system = UserSystem()
 
 
 @bp.route('/register_email', methods=['POST'])
@@ -16,17 +18,8 @@ def register_email():  # put application's code here
     # 检测请求格式
     if not email:
         return jsonify(code=400, msg='登录请求参数不完整'), 400
-
-    # 检查数据库email是否有相同
-    exist_email = User.query.filter_by(email=email).first()
-    if exist_email:
-        return jsonify(code=200, msg='邮箱已经存在'), 200
-    # 发送email到对应邮箱之中
-    try:
-        email_code = str(send_mail(email))
-        return jsonify(code=200, msg='成功发送邮件', email_code=email_code)
-    except SMTPDataError:
-        return jsonify(code=500, msg='邮件发送错误'), 500
+    [code, msg, mail_code] = user_system.mail_verify(email)
+    return jsonify(code=code, msg=msg, mail_code=mail_code), code
 
 
 @bp.route('/register', methods=['POST'])

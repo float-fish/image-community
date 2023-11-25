@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 from smtplib import SMTPDataError
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -15,7 +16,7 @@ class UserSystem(object):
     def mail_verify(self, email=None):
         exist_email = User.query.filter_by(email=email).first()
         if exist_email:
-            code = 200
+            code = 400
             msg = '邮箱已经存在'
             return [code, msg, None]
         if not email:
@@ -76,7 +77,7 @@ class UserSystem(object):
 
     def upload_avatar(self, name, head):
         path = '/static/user/avatar/' + str(self.cur_user.user_id) + name
-        head.save(os.getcwd()+path)
+        head.save(os.getcwd() + path)
         user = User.query.filter_by(user_id=self.cur_user.user_id).first()
         head_data = user.head
         old_path = head_data.head_picture_path
@@ -85,12 +86,27 @@ class UserSystem(object):
         db.session.add(head_data)
         db.session.commit()
 
-    # def change_password(self,user_password):
+    def change_password(self, user_password):
+        pass
 
     @staticmethod
     def send_mail(receiver):
         msg = Message("Your verification code", sender="923557344@qq.com", recipients=[receiver])
         code = random.randint(100000, 999999)
         msg.body = 'Your verification code is:\n' + str(code) + "\nPlease don't share this code with anyone."
+        msg.html = '''
+        <h1>
+        尊敬的{receiver}你好,
+        </h1>
+        <h3>
+            欢迎来到 <b>自动驾驶去噪图片社区系统</b>!
+        </h3>
+        <p>
+            您的验证码为 &nbsp;&nbsp; <b>{mailcode}</b> &nbsp;&nbsp;
+        </p>
+        
+        <p>请勿将验证码泄露,分享给他人,感谢您的支持和理解</p>
+        <p><small>{time}</small></p>
+        '''.format(receiver=receiver, mailcode=code, time=datetime.now())
         mail.send(msg)
         return code

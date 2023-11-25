@@ -18,17 +18,23 @@ class HeadPicture(db.Model):
 class User(db.Model):
     __tablename__ = 't_user'
     user_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    head_picture_id = db.Column(db.Integer, db.ForeignKey(HeadPicture.head_picture_id))
+    head_picture_id = db.Column(db.Integer, db.ForeignKey(HeadPicture.head_picture_id), default=1)
     email = db.Column(db.String(32), nullable=False, unique=True)
     user_password = db.Column(db.String(200), nullable=False)
     user_name = db.Column(db.String(15), nullable=False)
     sex = db.Column(db.Enum('男', '女'))
     telephone = db.Column(db.String(32))
-    register_time = db.Column(db.DateTime, nullable=False, default=datetime.utcnow())
+    register_time = db.Column(db.DateTime, nullable=False, default=datetime.now())
+    # last_login_time = db.Column(db.DateTime, nullable=False, default=datetime.now())
 
     head = db.relationship('HeadPicture', back_populates='users')
     old_images = db.relationship('OriginPicture', back_populates='owner', cascade='all')
     new_images = db.relationship('ProcessPicture', back_populates='owner', cascade='all')
+
+    # def update_last_login(self):
+    #     self.last_login_time = datetime.now()
+    #     db.session.add(self)
+    #     db.session.commit()
 
     def __repr__(self):
         return '<User %d:%r>' % (self.user_id, self.email)
@@ -39,7 +45,7 @@ class OriginPicture(db.Model):
     __tablename__ = 't_origin_picture'
     picture_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     picture_path = db.Column(db.String(255), nullable=False)
-    update_time = db.Column(db.DateTime, nullable=False, default=datetime.utcnow())
+    update_time = db.Column(db.DateTime, nullable=False, default=datetime.now())
     picture_name = db.Column(db.String(15), nullable=False)
     collective_tag = db.Column(db.Boolean, nullable=False, default=False)
     owner_id = db.Column(db.Integer, db.ForeignKey(User.user_id))
@@ -56,12 +62,12 @@ class ProcessPicture(db.Model):
     __tablename__ = 't_process_picture'
     picture_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     picture_path = db.Column(db.String(255), nullable=False)
-    generate_time = db.Column(db.DateTime, nullable=False, default=datetime.utcnow())
+    generate_time = db.Column(db.DateTime, nullable=False, default=datetime.now())
     picture_name = db.Column(db.String(15), nullable=False)
     collective_tag = db.Column(db.Boolean, nullable=False, default=False)
     picture_accuracy = db.Column(db.Float, nullable=False)
     picture_clarity = db.Column(db.Float, nullable=False)
-    origin_picture_id = db.Column(db.Integer, db.ForeignKey(OriginPicture.picture_id))
+    origin_picture_id = db.Column(db.Integer, db.ForeignKey(OriginPicture.picture_id), nullable=True)
     owner_id = db.Column(db.Integer, db.ForeignKey(User.user_id))
 
     picture_from = db.relationship('OriginPicture', back_populates='picture_process')
