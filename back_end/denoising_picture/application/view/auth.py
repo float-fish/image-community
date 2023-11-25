@@ -25,18 +25,21 @@ def register_email():  # put application's code here
     try:
         email_code = str(send_mail(email))
         return jsonify(code=200, msg='成功发送邮件', email_code=email_code)
-    except SMTPDataError as e:
+    except SMTPDataError:
         return jsonify(code=500, msg='邮件发送错误'), 500
 
 
 @bp.route('/register', methods=['POST'])
 def register():
+    # 接收参数
     json_data = request.get_json()
     email = json_data.get('email')
     username = json_data.get('username')
     password = json_data.get('password')
     if not all([email, password, username]):
         return jsonify(code=400, msg='登录请求参数不完整'), 400
+
+    # 添加用户进入数据库
     user = User(email=email, user_name=username, user_password=generate_password_hash(password))
     db.session.add(user)
     db.session.commit()
@@ -45,9 +48,12 @@ def register():
 
 @bp.route('/login', methods=['POST'])
 def user_login():
+    # 接收参数
     json_data = request.get_json()
     email = json_data.get('email')
     password = json_data.get('password')
+
+    # 参数接收有误
     if not all([email, password]):
         return jsonify(
             {
@@ -55,13 +61,15 @@ def user_login():
                 'msg': '请求参数错误',
             }
         ), 400
+
+    # 用户检测
     user = User.query.filter_by(email=email).first()
     if not user:
         return jsonify(
             {
                 "code": 404,
                 'msg': '用户未找到',
-                'status': {
+                'verification': {
                     'account': False,
                 }
             }
@@ -77,7 +85,7 @@ def user_login():
             {
                 "code": 200,
                 'msg': '用户登录成功!',
-                'status': {
+                'verification': {
                     'account': True,
                     'password': True
                 }
@@ -88,7 +96,7 @@ def user_login():
             {
                 "code": 403,
                 'msg': '密码错误',
-                'status': {
+                'verification': {
                     'account': True,
                     'password': False
                 }
@@ -129,12 +137,15 @@ def return_information():
 def change_information():
     user_id = session.get('user_id')
     personal_data = request.get_json()
-    sex = personal_data.get('sex')
-    tele = personal_data.get('telephone')
-    user_name = personal_data.get('username')
-    if not all([sex, tele, user_name]):
-        return jsonify(code=400, msg='登录请求参数不完整'), 400
+    if 'sex' in personal_data:
+        sex = personal_data.get('sex')
+    if 'telephone' in personal_data:
+        tele = personal_data.get('telephone')
+    if 'username' in personal_data:
+        user_name = personal_data.get('username')
+
     user_information = User.query.filter_by(user_id=user_id).first()
+    # TODO: 应该要有分别更改的选项
     user_information.sex = sex
     user_information.telephone = tele
     user_information.user_name = user_name
@@ -148,7 +159,7 @@ def change_head_picture():
     user_id = session.get('user_id')
     head = request.files['image']
     name = request.files['image'].name
-    path = os.getcwd() + f'/statics/user/avatar'
+    path = os.getcwd() + '/static/user/avatar'
     if not os.path.exists(path):
         os.mkdir(path)
     path += name
@@ -182,3 +193,12 @@ def change_password():
     db.session.add(user)
     db.session.commit()
     return jsonify(code=200, msg='成功修改密码')
+
+
+@bp.delete('/')
+def del_user():
+    user_id = session.get('user_id')
+    user = User.query.filter_by(user_id=user_id)
+    db.session.delete(user)
+    db.session.commit()
+    return jsonify(code=200, msg='用户已经成功的注销')

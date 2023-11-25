@@ -1,166 +1,211 @@
+import torch
 import torch.nn as nn
-from collections import OrderedDict
+import torch.nn.functional as F
 
 
+def default_conv(in_channels, out_channels, kernel_size, bias=True):
+    return nn.Conv2d(
+        in_channels, out_channels, kernel_size,
+        padding=(kernel_size // 2), bias=bias)
 
-def Conv2D(
-        in_channels: int, out_channels: int,
-        kernel_size: int, stride: int, padding: int,
-        is_seperable: bool = False, has_relu: bool = False,
-):
-    modules = OrderedDict()
 
-    if is_seperable:
-        modules['depthwise'] = nn.Conv2d(
-            in_channels, in_channels, kernel_size, stride, padding,
-            groups=in_channels, bias=False,
+class CommonMeanShift(nn.Conv2d):
+    def __init__(self, rgb_range, rgb_mean, rgb_std, sign=-1):
+        super(CommonMeanShift, self).__init__(3, 3, kernel_size=1)
+        std = torch.Tensor(rgb_std)
+        self.weight.data = torch.eye(3).view(3, 3, 1, 1)
+        self.weight.data.div_(std.view(3, 1, 1, 1))
+        self.bias.data = sign * rgb_range * torch.Tensor(rgb_mean)
+        self.bias.data.div_(std)
+        self.requires_grad = False
+
+
+def init_weights(modules):
+    pass
+
+
+class OpsMergeRundual(nn.Module):
+    def __init__(self,
+                 in_channels, out_channels,
+                 ksize=3, stride=1, pad=1, dilation=1):
+        super(OpsMergeRundual, self).__init__()
+
+        self.body1 = nn.Sequential(
+            nn.Conv2d(in_channels, out_channels, ksize, stride, pad),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(in_channels, out_channels, ksize, stride, 2, 2),
+            nn.ReLU(inplace=True)
         )
-        modules['pointwise'] = nn.Conv2d(
-            in_channels, out_channels,
-            kernel_size=1, stride=1, padding=0, bias=True,
+        self.body2 = nn.Sequential(
+            nn.Conv2d(in_channels, out_channels, ksize, stride, 3, 3),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(in_channels, out_channels, ksize, stride, 4, 4),
+            nn.ReLU(inplace=True)
         )
-    else:
-        modules['conv'] = nn.Conv2d(
-            in_channels, out_channels, kernel_size, stride, padding,
-            bias=True,
+
+        self.body3 = nn.Sequential(
+            nn.Conv2d(in_channels * 2, out_channels, ksize, stride, pad),
+            nn.ReLU(inplace=True)
         )
-    if has_relu:
-        modules['relu'] = nn.ReLU()
-
-    return nn.Sequential(modules)
-
-
-class EncoderBlock(nn.Module):
-
-    def __init__(self, in_channels: int, mid_channels: int, out_channels: int, stride: int = 1):
-        super().__init__()
-
-        self.conv1 = Conv2D(in_channels, mid_channels, kernel_size=5, stride=stride, padding=2, is_seperable=True,
-                            has_relu=True)
-        self.conv2 = Conv2D(mid_channels, out_channels, kernel_size=5, stride=1, padding=2, is_seperable=True,
-                            has_relu=False)
-
-        self.proj = (
-            nn.Identity()
-            if stride == 1 and in_channels == out_channels else
-            Conv2D(in_channels, out_channels, kernel_size=3, stride=stride, padding=1, is_seperable=True,
-                   has_relu=False)
-        )
-        self.relu = nn.ReLU()
+        # init_weights(self.modules)
 
     def forward(self, x):
-        proj = self.proj(x)
+        out1 = self.body1(x)
+        out2 = self.body2(x)
+        c = torch.cat([out1, out2], dim=1)
+        c_out = self.body3(c)
+        out = c_out + x
+        return out
 
-        x = self.conv1(x)
-        x = self.conv2(x)
 
-        x = x + proj
-        return self.relu(x)
+class OpsBasicBlock(nn.Module):
+    def __init__(self,
+                 in_channels, out_channels,
+                 ksize=3, stride=1, pad=1):
+        super(OpsBasicBlock, self).__init__()
 
-
-def EncoderStage(in_channels: int, out_channels: int, num_blocks: int):
-    blocks = [
-        EncoderBlock(
-            in_channels=in_channels,
-            mid_channels=out_channels // 4,
-            out_channels=out_channels,
-            stride=2,
-        )
-    ]
-    for _ in range(num_blocks - 1):
-        blocks.append(
-            EncoderBlock(
-                in_channels=out_channels,
-                mid_channels=out_channels // 4,
-                out_channels=out_channels,
-                stride=1,
-            )
+        self.body = nn.Sequential(
+            nn.Conv2d(in_channels, out_channels, ksize, stride, pad),
+            nn.ReLU(inplace=True)
         )
 
-    return nn.Sequential(*blocks)
-
-
-class DecoderBlock(nn.Module):
-
-    def __init__(self, in_channels: int, out_channels: int, kernel_size: int = 3):
-        super().__init__()
-
-        padding = kernel_size // 2
-        self.conv0 = Conv2D(
-            in_channels, out_channels, kernel_size=kernel_size, padding=padding,
-            stride=1, is_seperable=True, has_relu=True,
-        )
-        self.conv1 = Conv2D(
-            out_channels, out_channels, kernel_size=kernel_size, padding=padding,
-            stride=1, is_seperable=True, has_relu=False,
-        )
+        # init_weights(self.modules)
 
     def forward(self, x):
-        inp = x
-        x = self.conv0(x)
-        x = self.conv1(x)
-        x = x + inp
-        return x
+        out = self.body(x)
+        return out
 
 
-class DecoderStage(nn.Module):
+class OpsBasicBlockSig(nn.Module):
+    def __init__(self,
+                 in_channels, out_channels,
+                 ksize=3, stride=1, pad=1):
+        super(OpsBasicBlockSig, self).__init__()
 
-    def __init__(self, in_channels: int, skip_in_channels: int, out_channels: int):
-        super().__init__()
+        self.body = nn.Sequential(
+            nn.Conv2d(in_channels, out_channels, ksize, stride, pad),
+            nn.Sigmoid()
+        )
 
-        self.decode_conv = DecoderBlock(in_channels, in_channels, kernel_size=3)
-        self.upsample = nn.ConvTranspose2d(in_channels, out_channels, kernel_size=2, stride=2, padding=0)
-        self.proj_conv = Conv2D(skip_in_channels, out_channels, kernel_size=3, stride=1, padding=1, is_seperable=True, has_relu=True)
-        # M.init.msra_normal_(self.upsample.weight, mode='fan_in', nonlinearity='linear')
+        # init_weights(self.modules)
 
-    def forward(self, inputs):
-        inp, skip = inputs
-
-        x = self.decode_conv(inp)
-        x = self.upsample(x)
-        y = self.proj_conv(skip)
-        return x + y
+    def forward(self, x):
+        out = self.body(x)
+        return out
 
 
-class PMRID(nn.Module):
+class OpsResidualBlock(nn.Module):
+    def __init__(self,
+                 in_channels, out_channels):
+        super(OpsResidualBlock, self).__init__()
 
+        self.body = nn.Sequential(
+            nn.Conv2d(in_channels, out_channels, 3, 1, 1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(out_channels, out_channels, 3, 1, 1),
+        )
+
+        # init_weights(self.modules)
+
+    def forward(self, x):
+        out = self.body(x)
+        out = F.relu(out + x)
+        return out
+
+
+class OpsEResidualBlock(nn.Module):
+    def __init__(self,
+                 in_channels, out_channels,
+                 group=1):
+        super(OpsEResidualBlock, self).__init__()
+
+        self.body = nn.Sequential(
+            nn.Conv2d(in_channels, out_channels, 3, 1, 1, groups=group),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(out_channels, out_channels, 3, 1, 1, groups=group),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(out_channels, out_channels, 1, 1, 0),
+        )
+
+        # init_weights(self.modules)
+
+    def forward(self, x):
+        out = self.body(x)
+        out = F.relu(out + x)
+        return out
+
+
+class CALayer(nn.Module):
+    def __init__(self, channel, reduction=16):
+        super(CALayer, self).__init__()
+
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+
+        self.c1 = OpsBasicBlock(channel, channel // reduction, 1, 1, 0)
+        self.c2 = OpsBasicBlockSig(channel // reduction, channel, 1, 1, 0)
+
+    def forward(self, x):
+        y = self.avg_pool(x)
+        y1 = self.c1(y)
+        y2 = self.c2(y1)
+        return x * y2
+
+
+class Block(nn.Module):
+    def __init__(self, in_channels, out_channels, group=1):
+        super(Block, self).__init__()
+
+        self.r1 = OpsMergeRundual(in_channels, out_channels)
+        self.r2 = OpsResidualBlock(in_channels, out_channels)
+        self.r3 = OpsEResidualBlock(in_channels, out_channels)
+        # self.g = ops.BasicBlock(in_channels, out_channels, 1, 1, 0)
+        self.ca = CALayer(in_channels)
+
+    def forward(self, x):
+        r1 = self.r1(x)
+        r2 = self.r2(r1)
+        r3 = self.r3(r2)
+        # g = self.g(r3)
+        out = self.ca(r3)
+
+        return out
+
+
+class RIDNET(nn.Module):
     def __init__(self):
-        super().__init__()
+        super(RIDNET, self).__init__()
 
-        self.conv0 = Conv2D(in_channels=3, out_channels=16, kernel_size=3, padding=1, stride=1, is_seperable=False,
-                            has_relu=True)
-        self.enc1 = EncoderStage(in_channels=16, out_channels=64, num_blocks=2)
-        self.enc2 = EncoderStage(in_channels=64, out_channels=128, num_blocks=2)
-        self.enc3 = EncoderStage(in_channels=128, out_channels=256, num_blocks=4)
-        self.enc4 = EncoderStage(in_channels=256, out_channels=512, num_blocks=4)
+        n_feats = 64
+        kernel_size = 3
+        reduction = 16
 
-        self.encdec = Conv2D(in_channels=512, out_channels=64, kernel_size=3, padding=1, stride=1, is_seperable=True,
-                             has_relu=True)
-        self.dec1 = DecoderStage(in_channels=64, skip_in_channels=256, out_channels=64)
-        self.dec2 = DecoderStage(in_channels=64, skip_in_channels=128, out_channels=32)
-        self.dec3 = DecoderStage(in_channels=32, skip_in_channels=64, out_channels=32)
-        self.dec4 = DecoderStage(in_channels=32, skip_in_channels=16, out_channels=16)
+        rgb_mean = (0, 0, 0)
+        rgb_std = (1.0, 1.0, 1.0)
 
-        self.out0 = DecoderBlock(in_channels=16, out_channels=16, kernel_size=3)
-        self.out1 = Conv2D(in_channels=16, out_channels=3, kernel_size=3, stride=1, padding=1, is_seperable=False,
-                           has_relu=False)
+        # self.sub_mean = CommonMeanShift(255, rgb_mean, rgb_std)
+        # self.add_mean = CommonMeanShift(255, rgb_mean, rgb_std, 1)
 
-    def forward(self, inp):
-        conv0 = self.conv0(inp)
-        conv1 = self.enc1(conv0)
-        conv2 = self.enc2(conv1)
-        conv3 = self.enc3(conv2)
-        conv4 = self.enc4(conv3)
+        self.head = OpsBasicBlock(3, n_feats, kernel_size, 1, 1)
 
-        conv5 = self.encdec(conv4)
+        self.b1 = Block(n_feats, n_feats)
+        self.b2 = Block(n_feats, n_feats)
+        self.b3 = Block(n_feats, n_feats)
+        self.b4 = Block(n_feats, n_feats)
 
-        up3 = self.dec1((conv5, conv3))
-        up2 = self.dec2((up3, conv2))
-        up1 = self.dec3((up2, conv1))
-        x = self.dec4((up1, conv0))
+        self.tail = nn.Conv2d(n_feats, 3, kernel_size, 1, 1, 1)
 
-        x = self.out0(x)
-        x = self.out1(x)
+    def forward(self, x):
+        # s = self.sub_mean(x)
+        # h = self.head(s)
+        h = self.head(x)
+        b1 = self.b1(h)
+        b2 = self.b2(b1)
+        b3 = self.b3(b2)
+        b_out = self.b4(b3)
 
-        pred = inp + x
-        return pred
+        res = self.tail(b_out)
+        # out = self.add_mean(res)
+        # f_out = out + x
+        f_out = res + x
+
+        return f_out

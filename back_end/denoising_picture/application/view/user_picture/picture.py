@@ -142,7 +142,7 @@ def implement():
     size = model.ProcessPicture.query.count()
     size += 1
     entry_path = picture.picture_path
-    output = os.getcwd() + f'/statics/user/{user_id}/process/'
+    output = os.getcwd() + f'/static/user/{user_id}/process/'
     if not os.path.exists(output):
         os.makedirs(output)
     output += user_name + str(size) + '.jpg'

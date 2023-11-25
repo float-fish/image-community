@@ -1,7 +1,4 @@
 from application import app
-from flask_cors import CORS
-
-CORS(app, supports_credentials=True)
 
 
 @app.route('/', methods=['GET', 'POST'])

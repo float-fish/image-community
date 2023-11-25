@@ -1,6 +1,8 @@
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_mail import Mail, Message
+from flask_cors import CORS
+
 
 import random
 
@@ -19,7 +21,7 @@ app.config.update(
 )
 
 db = SQLAlchemy(app)
-
+CORS(app, supports_credentials=True)
 mail = Mail(app)
 
 
