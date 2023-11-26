@@ -10,6 +10,7 @@ mail = Mail()
 
 app = Flask(__name__)
 app.config.from_object(config_map[APP_ENV])
+app.secret_key = 'swyjqksmx'
 
 CORS(app, resources=r'/*', supports_credentials=True)
 

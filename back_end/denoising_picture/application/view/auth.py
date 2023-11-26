@@ -1,6 +1,6 @@
 from smtplib import SMTPDataError
 from .user_personal.Userclass import UserSystem
-from flask import Blueprint, request, jsonify, session
+from flask import Blueprint, request, jsonify, session, g
 from application import db, send_mail
 from werkzeug.security import generate_password_hash, check_password_hash
 from ..model import User
@@ -33,9 +33,16 @@ def register():
         return jsonify(code=400, msg='登录请求参数不完整'), 400
 
     # 添加用户进入数据库
-    user = User(email=email, user_name=username, user_password=generate_password_hash(password))
+    user = User(email=email, user_name=username, user_password=generate_password_hash(password), head_picture_id=1)
+    # TODO 之后应该在数据库里面default这个picture_id
     db.session.add(user)
     db.session.commit()
+
+
+    # origin_path = f'\\static\\user\\{user_id}\\'
+    # 增加用户的文件夹
+    # if not os.path.exists()
+
     return jsonify(code=200, msg='用户注册成功')
 
 
@@ -69,21 +76,21 @@ def user_login():
         ), 404
     if check_password_hash(user.user_password, password):
         session['user_id'] = user.user_id
-        session['user_name'] = user.user_name
-        session['email'] = email
-        session['sex'] = user.sex
-        session['tel'] = user.telephone
-        #  session['head_picture'] = user.head.head_picture_path
-        return jsonify(
+        print(session.get('user_id'))
+        response = jsonify(
             {
                 "code": 200,
                 'msg': '用户登录成功!',
                 'verification': {
                     'account': True,
-                    'password': True
-                }
+                    'password': True,
+
+                },
+                'user_id': user.user_id
             }
-        ), 200
+        )
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+        return response
     else:
         return jsonify(
             {
@@ -150,21 +157,34 @@ def change_information():
 @bp.post('/update_head_picture')
 def change_head_picture():
     user_id = session.get('user_id')
-    head = request.files['image']
-    name = request.files['image'].name
-    path = os.getcwd() + '/static/user/avatar'
-    if not os.path.exists(path):
-        os.mkdir(path)
-    path += name
-    head.save(path)
-    user = User.query.filter_by(user_id=user_id).first()
-    head_data = user.head
-    old_path = head_data.head_picture_path
-    head_data.head_picture_path = path
-    os.remove(old_path)
-    db.session.add(head_data)
-    db.session.commit()
-    return jsonify(code=200, msg="成功修改头像")
+    if len(request.files) == 0:
+        print("文件是空的!!!")
+        return jsonify(code=400, msg='empty picture'), 400
+    for file in request.files.values():
+        head = file
+        name = file.filename
+        print(name)
+        allow_suffix = ['png', 'jpg', 'PNG', 'JPG']
+        if name.split('.')[1] not in allow_suffix:
+            return jsonify(code=400, msg='error files'), 400
+        directory = os.getcwd()
+        path = '\\static\\user\\avatar'
+        if not os.path.exists(directory + path):
+            os.makedirs(directory + path)
+        path = path + '\\' + str(user_id) + '_' + name
+        user = User.query.filter_by(user_id=user_id).first()
+        if user.head:
+            head_data = user.head
+        else:
+            return jsonify(code=400, msg=f'用户{user_id}的头像有误'), 400
+        old_path = directory + head_data.head_picture_path
+        head_data.head_picture_path = path
+        db.session.add(head_data)
+        db.session.commit()
+        if head_data.head_picture_id != 1:
+            os.remove(old_path)
+        head.save(directory + path)
+        return jsonify(code=200, msg="成功修改头像", path=path)
 
 
 @bp.get('/verify_email')

@@ -1,6 +1,8 @@
 from datetime import datetime
 
 from flask import Blueprint, request, jsonify, session, send_file, send_from_directory
+from sqlalchemy import exists
+
 from application import db, model
 from . import PictureClass
 from application.util.launch import generate_processed_picture
@@ -15,15 +17,23 @@ bp = Blueprint('picture', __name__, url_prefix='/user/picture')
 @bp.route('/process_collective', methods=['GET', 'POST'])
 def show_picture():
     user_id = session.get('user_id')
-    cur_page = request.get_json()
-    page = cur_page.get('page')
+    print(session.get('user_id'))
 
+    cur_page = request.get_json()
+    if 'user_id' in cur_page:
+        user_id = cur_page.get('user_id')
+    page = cur_page.get('page')
+    per_page = 8
     picture_type = request.path.split('/')[3]
     try:
         pic: PictureClass.UserPicture = PictureClass.picture_map[picture_type](user_id=user_id)
     except TypeError:
         return jsonify(code=400, msg='路径出现错误')
-    pictures = pic.query_in_page(page, 8)
+    pictures = pic.query_in_page(page, per_page)
+    picture_num = pic.query_count()
+    current_num = min(per_page, picture_num - (page - 1) * per_page)
+
+
 
     pictures_path = []
     pictures_id = []
@@ -38,7 +48,9 @@ def show_picture():
             'msg': f'成功返回当前{page}页图片页面',
             'data': {
                 "pictures_path": pictures_path,
-                "pictures_id": pictures_id
+                "pictures_id": pictures_id,
+                'pictures_num': picture_num,
+                'current_num': current_num
             }
         }
     )
@@ -206,23 +218,38 @@ def implement():
 
 @bp.route('/upload', methods=['GET', 'POST'])
 def add_picture():
-
     user_id = session.get('user_id')
-    image = request.files['image']
-    name = request.files['image'].filename
-    allow_houzhui = ['png', 'jpg', 'PNG', 'JPG']
-    if name.split('.')[1] not in allow_houzhui:
-        return jsonify(code=400, msg='上传文件的格式为非图片')
-    directory = os.getcwd()
-    path = f'\\static\\user\\{user_id}\\origin'
-    if not os.path.exists(directory + path):
-        os.makedirs(directory + path)
-    path = path + '\\' + name
-    image.save(directory + path)
-    picture = model.OriginPicture(picture_path=path, picture_name=name, owner_id=user_id)
-    db.session.add(picture)
-    db.session.commit()
-    return jsonify(code=200, msg="上传成功")
+    try:
+        if len(request.files) == 0:
+            print("文件是空的!!!")
+            return jsonify(code=400, msg='empty picture'), 400
+        for file in request.files.values():
+            image = file
+            name = file.filename
+            print(image)
+            print(name)
+            allow_suffix = ['png', 'jpg', 'PNG', 'JPG']
+            if name.split('.')[1] not in allow_suffix:
+                return jsonify(code=400, msg='error files'), 400
+            directory = os.getcwd()
+            path = f'\\static\\user\\{user_id}\\origin'
+            if not os.path.exists(directory + path):
+                os.makedirs(directory + path)
+            path = path + '\\' + name
+            exist_path = True
+            while exist_path:
+                exist_path = exists().where(model.OriginPicture.picture_path == path)
+                add_str = '1' if exist_path else ''
+                path += add_str
+
+            image.save(directory + path)
+            picture = model.OriginPicture(picture_path=path, picture_name=name, owner_id=user_id)
+            # print(picture)
+            db.session.add(picture)
+            db.session.commit()
+        return jsonify(code=200, msg="上传成功")
+    except KeyError:
+        return jsonify(code=400, msg='缺少对应参数的图片文件'), 400
 
 
 @bp.route('origin/download')

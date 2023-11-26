@@ -1,8 +1,12 @@
+# 从应用程序之中导入flask app
 from application import app
 
 
 @app.route('/', methods=['GET', 'POST'])
 def hello_world():  # put application's code here
+    """
+    :return: "hello-world" 测试接口
+    """
     return "hello-world"
 
 

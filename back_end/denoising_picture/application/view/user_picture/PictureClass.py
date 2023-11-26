@@ -21,6 +21,9 @@ class UserPicture(object):
     def query_collective(self):
         return self.user_list.filter_by(collective_tag=True).all()
 
+    def query_count(self):
+        return self.user_list.count()
+
 
 class UserOriginPicture(UserPicture):
     user_origin_path: str
