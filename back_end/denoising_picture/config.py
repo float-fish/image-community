@@ -13,6 +13,8 @@ class BaseConfig(object):
     SECRET_KEY = "Dramatize6EPcv0fN_81Bj-nA"
     PERMANENT_SESSION_LIFETIME = 3600 * 24  # 设置过期时间为1天
 
+    # TODO redis配置session
+
     # QQ邮箱的配置
     # MAIL_DEBUG = True
     MAIL_SERVER = 'smtp.qq.com'  # qq的smtp服务器

@@ -12,7 +12,7 @@ user_system = UserSystem()
 
 
 @bp.route('/register_email', methods=['POST'])
-def register_email():  # put application's code here
+def register_email():
     register_data = request.get_json()
     email = register_data.get('email')
     # 检测请求格式
@@ -38,10 +38,16 @@ def register():
     db.session.add(user)
     db.session.commit()
 
+    # 生成用户的图片存放文件
+    user_id = User.query.filter_by(email=email).first().user_id
+    origin_path = f'/static/user/{user_id}/origin'
+    process_path = f'/static/user/{user_id}/process'
 
-    # origin_path = f'\\static\\user\\{user_id}\\'
     # 增加用户的文件夹
-    # if not os.path.exists()
+    if not os.path.exists(origin_path):
+        os.makedirs(origin_path)
+    if not os.path.exists(process_path):
+        os.makedirs(process_path)
 
     return jsonify(code=200, msg='用户注册成功')
 
@@ -73,7 +79,7 @@ def user_login():
                     'account': False,
                 }
             }
-        ), 404
+        ), 200
     if check_password_hash(user.user_password, password):
         session['user_id'] = user.user_id
         print(session.get('user_id'))
@@ -101,7 +107,7 @@ def user_login():
                     'password': False
                 }
             }
-        ), 403
+        ), 200
 
 
 @bp.route('/logout', methods=['GET'])
@@ -112,12 +118,18 @@ def user_logout():
 
 @bp.get('/')
 def return_information():
-    email = session.get('email')
-    user_name = session.get('user_name')
-    sex = session.get('sex')
-    tel = session.get('telephone')
-    avatar = session.get('head_picture')
+    user_id = session.get('user_id')
+    if 'user_id' in request.get_json():
+        user_id = request.get_json().get('user_id')
 
+    user = User.query.filter_by(user_id=user_id).first()
+    if not user:
+        return jsonify(code=400, msg='错误!用户不存在'), 400
+    email = user.email
+    user_name = user.user_name
+    sex = user.sex
+    tel = user.telephone
+    avatar = user.head.head_picture_path
     return jsonify(
         {
             'code': 200,
@@ -127,7 +139,7 @@ def return_information():
                 'user_name': user_name,
                 'sex': sex,
                 'telephone': tel,
-                'url': avatar,
+                'avatar_url': avatar,
             }
         }
     )
@@ -135,23 +147,33 @@ def return_information():
 
 @bp.post('/')
 def change_information():
+    # 获取数据
     user_id = session.get('user_id')
     personal_data = request.get_json()
+    if 'user_id' in personal_data:
+        user_id = personal_data.get('user_id')
+    if not user_id:
+        return jsonify(code=400, msg='用户id为空'), 400
+    user = User.query.filter_by(user_id=user_id).first()
+    if not user:
+        return jsonify(code=400, msg=f'用户id为{user_id}的用户不存在'), 400
+
+    sex = user.sex
     if 'sex' in personal_data:
         sex = personal_data.get('sex')
+    tele = user.telephone
     if 'telephone' in personal_data:
         tele = personal_data.get('telephone')
+    user_name = user.user_name
     if 'username' in personal_data:
         user_name = personal_data.get('username')
 
-    user_information = User.query.filter_by(user_id=user_id).first()
-    # TODO: 应该要有分别更改的选项
-    user_information.sex = sex
-    user_information.telephone = tele
-    user_information.user_name = user_name
-    db.session.add(user_information)
+    user.sex = sex
+    user.telephone = tele
+    user.user_name = user_name
+    db.session.add(user)
     db.session.commit()
-    return jsonify(code=200, msg='成功修改个人信息')
+    return jsonify(code=200, msg=f'成功修改个人用户{user}的信息')
 
 
 @bp.post('/update_head_picture')
@@ -168,10 +190,10 @@ def change_head_picture():
         if name.split('.')[1] not in allow_suffix:
             return jsonify(code=400, msg='error files'), 400
         directory = os.getcwd()
-        path = '\\static\\user\\avatar'
+        path = '/static/user/avatar'
         if not os.path.exists(directory + path):
             os.makedirs(directory + path)
-        path = path + '\\' + str(user_id) + '_' + name
+        path = path + '/' + str(user_id) + '_' + name
         user = User.query.filter_by(user_id=user_id).first()
         if user.head:
             head_data = user.head
@@ -190,13 +212,16 @@ def change_head_picture():
 @bp.get('/verify_email')
 def email_check():
     user_id = session.get('user_id')
+    if 'user_id' in request.get_json().get('user_id'):
+        user_id = request.get_json().get('user_id')
     user = User.query.filter_by(user_id=user_id).first()
     email = user.email
     email_code = send_mail(email)
     return jsonify(code=200, msg='成功发送邮件', email_code=email_code)
 
 
-@bp.post('/changepassword')
+@bp.post('/forget_password')
+@bp.post('/change_password')
 def change_password():
     user_id = session.get('user_id')
     new_data = request.get_json()
@@ -212,6 +237,11 @@ def change_password():
 def del_user():
     user_id = session.get('user_id')
     user = User.query.filter_by(user_id=user_id)
+    try:
+        for p in [user.old_images, user.new_images]:
+            os.remove(os.getcwd()+p.picture_path)
+    except OSError:
+        return jsonify(code=400, msg='用户图库的路径有误')
     db.session.delete(user)
     db.session.commit()
     return jsonify(code=200, msg='用户已经成功的注销')

@@ -1,4 +1,5 @@
 from datetime import datetime
+from math import ceil
 
 from flask import Blueprint, request, jsonify, session, send_file, send_from_directory
 from sqlalchemy import exists
@@ -22,35 +23,38 @@ def show_picture():
     cur_page = request.get_json()
     if 'user_id' in cur_page:
         user_id = cur_page.get('user_id')
-    page = cur_page.get('page')
+    page: int = cur_page.get('page')
+    if not page:
+        return jsonify(code=400, msg='错误!参数page为空'), 400
     per_page = 8
     picture_type = request.path.split('/')[3]
     try:
         pic: PictureClass.UserPicture = PictureClass.picture_map[picture_type](user_id=user_id)
     except TypeError:
         return jsonify(code=400, msg='路径出现错误')
-    pictures = pic.query_in_page(page, per_page)
+    pictures = pic.query_all()
     picture_num = pic.query_count()
     current_num = min(per_page, picture_num - (page - 1) * per_page)
+    total_page = ceil(picture_num / per_page)
 
-
-
-    pictures_path = []
-    pictures_id = []
+    picture_information = dict()
+    picture_time = dict()
     for i in pictures:
-        pictures_path.append(i.picture_path)
-        pictures_id.append(i.picture_id)
+        picture_information[i.picture_id] = i.picture_path
+        if type(i) is model.OriginPicture:
+            picture_time[i.picture_id] = i.update_time.strftime("%Y-%m-%d_%H:%M:%S")
+        else:
+            picture_time[i.picture_id] = i.generate_time.strftime("%Y-%m-%d_%H:%M:%S")
 
     return jsonify(
         {
-            "user_id": user_id,
             "code": 200,
             'msg': f'成功返回当前{page}页图片页面',
             'data': {
-                "pictures_path": pictures_path,
-                "pictures_id": pictures_id,
-                'pictures_num': picture_num,
-                'current_num': current_num
+                "pictures_information": picture_information,
+                "pictures_time": picture_time,
+                'current_num': current_num,
+                'total_page': total_page
             }
         }
     )
@@ -61,26 +65,34 @@ def show_picture():
 def time_search():
     user_id = session.get('user_id')
     data = request.get_json()
+    if 'user_id' in data:
+        user_id = data.get('user_id')
     start_time = data.get('start_time')
     end_time = data.get('end_time')
     page = data.get('page')
-    print(start_time)
-    print(end_time)
-    start = datetime.strptime(start_time, "%Y-%m-%d %H:%M:%S")
-    end = datetime.strptime(end_time, "%Y-%m-%d %H:%M:%S")
+    per_page = 8
+    if not all([start_time, end_time, page]):
+        return jsonify(code=400, msg='传递参数不完整'), 400
+    start = datetime.strptime(start_time, "%a %b %d %Y %H:%M:%S GMT%z (%Z)")
+    end = datetime.strptime(end_time, "%a %b %d %Y %H:%M:%S GMT%z (%Z)")
     print(start, end, type(start))
     picture_type = request.path.split('/')[3]
     try:
         pic: PictureClass.UserPicture = PictureClass.picture_map[picture_type](user_id=user_id)
     except TypeError:
         return jsonify(code=400, msg='路径出现错误')
-    pictures = pic.time_search_query_in_page(page, 8, start, end)
+    pictures = pic.time_search_query_in_page(page, per_page, start, end)
+    picture_num = pic.query_count()
+    current_num = min(per_page, picture_num - (page - 1) * per_page)
+    total_page = ceil(picture_num / per_page)
 
     pictures_path = []
     pictures_id = []
+    pictures_time = []
     for i in pictures:
         pictures_path.append(i.picture_path)
         pictures_id.append(i.picture_id)
+        pictures_time.append(i.update_time)
 
     return jsonify(
         {
@@ -88,7 +100,10 @@ def time_search():
             'msg': '成功返回当前图片页面',
             'data': {
                 "pictures_path": pictures_path,
-                "pictures_id": pictures_id
+                "pictures_id": pictures_id,
+                'pictures_time:': pictures_time,
+                'current_num': current_num,
+                'total_page': total_page
             }
         }
     )
@@ -140,10 +155,15 @@ def show_process_detail(pid: int):
     )
 
 
-@bp.delete('/process/<int:pid>')
-@bp.delete('/origin/<int:pid>')
+@bp.post('/process/delete/<int:pid>')
+@bp.post('/origin/delete/<int:pid>')
 def del_picture(pid: int):
     user_id = session.get("user_id")
+    print(user_id)
+    if 'user_id' in request.get_json():
+        user_id = request.get_json().get('user_id')
+    if not user_id:
+        return jsonify(code=400, msg='用户id为空'), 400
     picture_type = request.path.split('/')[3]
     try:
         pic: PictureClass.UserPicture = PictureClass.picture_map[picture_type](user_id=user_id)
@@ -174,11 +194,13 @@ def change_picture(pid: int):
     except TypeError:
         return jsonify(code=400, msg='路径出现错误')
     picture = pic.query_detail(pid)
+    if not picture:
+        return jsonify(code=400, msg='找不到对应的图片')
 
     data = request.get_json()
-    name = data.get('name')
+    # name = data.get('name')
     collect = data.get('collective_tag')
-    picture.picture_name = name
+    # picture.picture_name = name
     picture.collective_tag = collect
     db.session.add(picture)
     db.session.commit()
@@ -188,10 +210,15 @@ def change_picture(pid: int):
 @bp.post('/transform')
 def implement():
     user_id = session.get('user_id')
-    user_name: str = str(session.get('user_name'))
     data = request.get_json()
+    if 'user_id' in data:
+        user_id = data.get('user_id')
     pid = data.get('pid')
+    if not all([pid, user_id]):
+        return jsonify(code=400, msg='请求的参数不全'), 400
     picture = model.OriginPicture.query.filter_by(picture_id=pid).first()
+    if not picture:
+        return jsonify(code=400, msg=f'图片编号{pid}对应的图片不存在'), 400
     size = model.ProcessPicture.query.count()
     size += 1
     entry_path = os.getcwd() + picture.picture_path
@@ -199,19 +226,25 @@ def implement():
     output = os.getcwd() + save_path
     if not os.path.exists(output):
         os.makedirs(output)
-    save_path += user_name + str(size) + '.jpg'
+    current_time = datetime.now()
+    current_time_str = current_time.strftime("%Y-%m-%d_%H%M%S")
+    name = current_time_str
+    save_path += name + '.jpg'
     output = os.getcwd() + save_path
     generate_processed_picture(entry_path, output)
-    processed_picture = model.ProcessPicture(picture_path=save_path, picture_name=user_name + str(size),
+    processed_picture = model.ProcessPicture(picture_path=save_path, picture_name=str(user_id) + str(size),
                                              picture_accuracy=80, picture_clarity=80, origin_picture_id=pid,
                                              owner_id=user_id)
+
     db.session.add(processed_picture)
     db.session.commit()
+    curr_pid = model.ProcessPicture.query.filter_by(picture_path=save_path).first().picture_id
     return jsonify(
         {
             "code": 200,
             'msg': '成功生成图片',
-            'path': output
+            'path': save_path,
+            'pid': curr_pid
         }
     )
 
@@ -219,6 +252,9 @@ def implement():
 @bp.route('/upload', methods=['GET', 'POST'])
 def add_picture():
     user_id = session.get('user_id')
+    if 'user_id' in request.form:
+        user_id = request.form.get('user_id')
+    print(user_id)
     try:
         if len(request.files) == 0:
             print("文件是空的!!!")
@@ -226,25 +262,20 @@ def add_picture():
         for file in request.files.values():
             image = file
             name = file.filename
-            print(image)
             print(name)
             allow_suffix = ['png', 'jpg', 'PNG', 'JPG']
-            if name.split('.')[1] not in allow_suffix:
+            suffix = name.split('.')[1]
+            if suffix not in allow_suffix:
                 return jsonify(code=400, msg='error files'), 400
             directory = os.getcwd()
-            path = f'\\static\\user\\{user_id}\\origin'
+            path = f'/static/user/{user_id}/origin'
             if not os.path.exists(directory + path):
                 os.makedirs(directory + path)
-            path = path + '\\' + name
-            exist_path = True
-            while exist_path:
-                exist_path = exists().where(model.OriginPicture.picture_path == path)
-                add_str = '1' if exist_path else ''
-                path += add_str
-
+            current_time = datetime.now()
+            current_time_str = current_time.strftime("%Y-%m-%d_%H%M%S")
+            path = path + '/' + current_time_str + '.' + suffix
             image.save(directory + path)
             picture = model.OriginPicture(picture_path=path, picture_name=name, owner_id=user_id)
-            # print(picture)
             db.session.add(picture)
             db.session.commit()
         return jsonify(code=200, msg="上传成功")
@@ -255,8 +286,11 @@ def add_picture():
 @bp.route('origin/download')
 @bp.route('process/download')
 def download_picture():
-    image_id = request.get_json().get('pid')
+    data = request.get_json()
+    image_id = data.get('pid')
     user_id = session.get("user_id")
+    if 'user_id' in data:
+        user_id = data.get('user_id')
     picture_type = request.path.split('/')[3]
     try:
         pic: PictureClass.UserPicture = PictureClass.picture_map[picture_type](user_id=user_id)
@@ -269,4 +303,5 @@ def download_picture():
 
 @bp.route('/<path:filename>')
 def send_from_backend(filename):
+    print(filename)
     return send_from_directory(directory=os.getcwd(), path=filename)

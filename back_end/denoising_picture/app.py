@@ -2,6 +2,8 @@
 from application import app
 
 
+# TODO 使用Migrate管理迁移数据库
+
 @app.route('/', methods=['GET', 'POST'])
 def hello_world():  # put application's code here
     """

@@ -1,3 +1,5 @@
+import os
+
 from flask import Blueprint, session, jsonify, request
 from .. import model, db
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -23,7 +25,7 @@ def admin_login():
                         "account": False
                     }
             }
-        )
+        ), 404
     if password == admin.admin_password:
         session['admin_name'] = admin.admin_name
         return jsonify(
@@ -62,11 +64,12 @@ def admin_logout():
     )
 
 
-@admin_bp.post('/user')
+@admin_bp.route('/user', methods=['GET', 'POST'])
 def admin_query_user():
-    data = request.get_json()
-    page = data.get('page')
-    users = model.User.query.paginate(page=page, per_page=8)
+    # data = request.get_json()
+    # page = data.get('page')
+    # users = model.User.query.paginate(page=page, per_page=8)
+    users = model.User.query.all()
 
     users_id = []
     users_name = []
@@ -91,7 +94,30 @@ def admin_query_user():
 
 @admin_bp.post('/user/search')
 def fuzzy_search():
-    pass
+    data = request.get_json()
+    keyword = data.get('user_name')
+    keyword = f'%{keyword}%'
+    users = model.User.query.filter(model.User.user_name.like(keyword)).all()
+
+    users_id = []
+    users_name = []
+    users_email = []
+    for user in users:
+        users_id.append(user.user_id)
+        users_name.append(user.user_name)
+        users_email.append(user.email)
+
+    return jsonify(
+        {
+            "code": 200,
+            "msg": "成功返回用户列表",
+            "data": {
+                "users_id": users_id,
+                "users_name": users_name,
+                "users_email": users_email
+            }
+        }
+    )
 
 
 @admin_bp.get('/user/<int:user_id>')
@@ -116,6 +142,13 @@ def admin_query_byid(user_id: int):
 @admin_bp.delete('/user/<int:user_id>')
 def admin_del_user(user_id: int):
     user = model.User.query.get(user_id)
+    if not user:
+        return jsonify(code=400, msg=f'用户号{user_id}的用户不存在'), 400
+    try:
+        for p in [user.old_images, user.new_images]:
+            os.remove(os.getcwd() + p.picture_path)
+    except OSError:
+        return jsonify(code=400, msg='用户图库的路径有误')
     db.session.delete(user)
     db.session.commit()
     return jsonify(code=200, msg="成功删除用户")

@@ -15,7 +15,7 @@ def generate_processed_picture(entry_path: str, output_path: str):
 
     transform = transforms.Compose([
         transforms.ToTensor(),
-        transforms.Resize((800, 640)),
+        transforms.Resize((540, 810)),
         transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
     ])
     image = Image.open(entry_path)

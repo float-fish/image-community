@@ -24,6 +24,9 @@ class UserPicture(object):
     def query_count(self):
         return self.user_list.count()
 
+    def query_all(self):
+        return self.user_list.all()
+
 
 class UserOriginPicture(UserPicture):
     user_origin_path: str
