@@ -1,13 +1,19 @@
+#!/usr/bin/env python3.11.4
+""" 对前端页面实现用户个人图库操作的api接口
+
+Copyright 2023 Yu Shengjie.
+License(GPL)
+Author: Yu Shengjie
+"""
+import os
 from datetime import datetime
 from math import ceil
 
 from flask import Blueprint, request, jsonify, session, send_file, send_from_directory
-from sqlalchemy import exists
 
 from application import db, model
-from . import PictureClass
 from application.util.launch import generate_processed_picture
-import os
+from . import PictureClass
 
 bp = Blueprint('picture', __name__, url_prefix='/user/picture')
 
@@ -69,22 +75,23 @@ def time_search():
         user_id = data.get('user_id')
     start_time = data.get('start_time')
     end_time = data.get('end_time')
-    page = data.get('page')
-    per_page = 8
-    if not all([start_time, end_time, page]):
+    # page = data.get('page')
+    # per_page = 8
+    if not all([user_id, start_time, end_time]):
+        print('参数不完整')
         return jsonify(code=400, msg='传递参数不完整'), 400
     start = datetime.strptime(start_time, "%a %b %d %Y %H:%M:%S GMT%z (%Z)")
     end = datetime.strptime(end_time, "%a %b %d %Y %H:%M:%S GMT%z (%Z)")
-    print(start, end, type(start))
+    # print(start, end, type(start))
     picture_type = request.path.split('/')[3]
     try:
         pic: PictureClass.UserPicture = PictureClass.picture_map[picture_type](user_id=user_id)
     except TypeError:
         return jsonify(code=400, msg='路径出现错误')
-    pictures = pic.time_search_query_in_page(page, per_page, start, end)
+    pictures = pic.query_time_all(start, end)
     picture_num = pic.query_count()
-    current_num = min(per_page, picture_num - (page - 1) * per_page)
-    total_page = ceil(picture_num / per_page)
+    # current_num = min(per_page, picture_num - (page - 1) * per_page)
+    # total_page = ceil(picture_num / per_page)
 
     pictures_path = []
     pictures_id = []
@@ -92,7 +99,10 @@ def time_search():
     for i in pictures:
         pictures_path.append(i.picture_path)
         pictures_id.append(i.picture_id)
-        pictures_time.append(i.update_time)
+        if type(i) is model.OriginPicture:
+            pictures_time.append(i.update_time.strftime("%Y-%m-%d_%H:%M:%S"))
+        else:
+            pictures_time.append(i.generate_time.strftime("%Y-%m-%d_%H:%M:%S"))
 
     return jsonify(
         {
@@ -102,8 +112,8 @@ def time_search():
                 "pictures_path": pictures_path,
                 "pictures_id": pictures_id,
                 'pictures_time:': pictures_time,
-                'current_num': current_num,
-                'total_page': total_page
+                # 'current_num': current_num,
+                # 'total_page': total_page
             }
         }
     )
@@ -238,7 +248,7 @@ def implement():
 
     db.session.add(processed_picture)
     db.session.commit()
-    curr_pid = model.ProcessPicture.query.filter_by(picture_path=save_path).first().picture_id
+    curr_pid = processed_picture.picture_id
     return jsonify(
         {
             "code": 200,

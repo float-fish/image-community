@@ -1,3 +1,10 @@
+#!/usr/bin/env python3.11.4
+""" 个人图库操作的的操作类,为不同类别的图库实现复用
+
+Copyright 2023 Yu Shengjie.
+License(GPL)
+Author: Yu Shengjie
+"""
 from sqlalchemy import and_
 
 from application import db, model
@@ -27,6 +34,9 @@ class UserPicture(object):
     def query_all(self):
         return self.user_list.all()
 
+    def query_time_all(self, start_time, end_time):
+        pass
+
 
 class UserOriginPicture(UserPicture):
     user_origin_path: str
@@ -54,10 +64,13 @@ class UserOriginPicture(UserPicture):
         return [code, msg]
 
     def time_search_query_in_page(self, page, per_page, start_time: datetime, end_time: datetime):
-        print(type(model.OriginPicture.update_time))
         return (self.user_list.filter(and_(start_time <= model.OriginPicture.update_time,
                                            model.OriginPicture.update_time <= end_time))
                 .paginate(page=page, per_page=per_page))
+
+    def query_time_all(self, start_time, end_time):
+        return (self.user_list.filter(and_(start_time <= model.OriginPicture.update_time,
+                                           model.OriginPicture.update_time <= end_time)).all())
 
 
 class UserProcessedPicture(UserPicture):
@@ -77,6 +90,10 @@ class UserProcessedPicture(UserPicture):
         return (self.user_list.filter(and_(start_time <= model.ProcessPicture.generate_time,
                                            model.ProcessPicture.generate_time <= end_time))
                 .paginate(page=page, per_page=per_page))
+
+    def query_time_all(self, start_time, end_time):
+        return (self.user_list.filter(and_(start_time <= model.ProcessPicture.generate_time,
+                                           model.ProcessPicture.generate_time <= end_time)).all())
 
 
 class OriginCollective(UserPicture):

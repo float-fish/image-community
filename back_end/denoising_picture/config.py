@@ -30,7 +30,15 @@ class DevelopmentConfig(BaseConfig):
 
     """
     APP_DEBUG = True
-    SQLALCHEMY_DATABASE_URI = "mysql+pymysql://root:ysj500236@localhost:3306/processed_picture"
+    USERNAME = 'root'  # 用户名
+    PASSWORD = 'ysj500236'  # 登录密码
+    HOST = 'localhost'  # 数据库IP地址
+    PORT = '3306'  # 端口
+    DATABASE = 'processed_picture'  # 数据库名
+    SQLALCHEMY_DATABASE_URI = ("mysql+pymysql://{}:{}@{}:{}/{}"
+                               .format(USERNAME, PASSWORD, HOST, PORT, DATABASE))
+
+    HEAD_PICTURE_DEFAULT_PATH = '/static/user/avatar/default.JPG'
 
 
 class ProductionConfig(BaseConfig):

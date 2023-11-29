@@ -1,5 +1,8 @@
 # 从应用程序之中导入flask app
-from application import app
+from application import app, db
+from flask_migrate import Migrate
+
+migrate = Migrate(app, db)
 
 
 # TODO 使用Migrate管理迁移数据库
